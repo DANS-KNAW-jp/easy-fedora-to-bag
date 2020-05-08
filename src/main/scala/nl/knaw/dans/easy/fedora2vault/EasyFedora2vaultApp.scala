@@ -23,14 +23,12 @@ import better.files.{ File, StringExtensions }
 import com.yourmediashelf.fedora.client.{ FedoraClient, FedoraClientException }
 import javax.naming.ldap.InitialLdapContext
 import nl.knaw.dans.bag.v0.DansV0Bag
-import nl.knaw.dans.easy.fedora2vault.Command.FeedBackMessage
 import nl.knaw.dans.easy.fedora2vault.FoXml.{ getEmd, _ }
 import nl.knaw.dans.easy.fedora2vault.TransformationType.SIMPLE
 import nl.knaw.dans.lib.error._
 import nl.knaw.dans.lib.logging.DebugEnhancedLogging
 import nl.knaw.dans.pf.language.emd.EasyMetadataImpl
 import nl.knaw.dans.pf.language.emd.binding.EmdUnmarshaller
-import org.apache.commons.csv.CSVPrinter
 import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
@@ -43,7 +41,7 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
   private lazy val ldap = new Ldap(ldapContext)
   private val emdUnmarshaller = new EmdUnmarshaller(classOf[EasyMetadataImpl])
 
-  def simpleTransForms(input: File, outputDir: File)(implicit printer: CSVPrinter): Try[FeedBackMessage] = {
+  def simpleTransForms(input: File, outputDir: File): Iterator[Try[CsvRecord]] = {
     input.lineIterator.filterNot(_.startsWith("#")).map { datasetId =>
       val uuid = UUID.randomUUID
       simpleTransform(outputDir / uuid.toString)(datasetId)
@@ -51,18 +49,14 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
         .recoverWith {
           case t: FedoraClientException if t.getStatus != 404 => Failure(t)
           case t: Exception if t.isInstanceOf[IOException] => Failure(t)
-          case t => CsvRecord(
+          case t => Success(CsvRecord(
             datasetId, doi = "", depositor = "", SIMPLE, uuid, s"FAILED: $t"
-          ).print
+          ))
         }
     }
-  }.collectFirst { case f @ Failure(_) => f }
-    .getOrElse(Success(
-      s"""All datasets in $input
-         | saved as bags in $outputDir""".stripMargin
-    ))
+  }
 
-  def simpleTransform(bagDir: File)(datasetId: DatasetId)(implicit printer: CSVPrinter): Try[FeedBackMessage] = {
+  def simpleTransform(bagDir: File)(datasetId: DatasetId): Try[CsvRecord] = {
 
     def managedMetadataStream(foXml: Elem, streamId: String, bag: DansV0Bag, metadataFile: String) = {
       managedStreamLabel(foXml, streamId)
@@ -126,8 +120,7 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
         .map(compareManifest(bag))
         .getOrElse(Success(())) // TODO check with sha's from fedora
       doi = emd.getEmdIdentifier.getDansManagedDoi
-      msg <- CsvRecord(datasetId, doi, depositor, SIMPLE, UUID.fromString(bagDir.name), "OK").print
-    } yield msg
+    } yield CsvRecord(datasetId, doi, depositor, SIMPLE, UUID.fromString(bagDir.name), "OK")
   }
 
   private def getAudience(id: String) = {

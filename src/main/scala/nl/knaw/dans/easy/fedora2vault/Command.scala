@@ -23,7 +23,7 @@ import nl.knaw.dans.lib.error._
 import nl.knaw.dans.lib.logging.DebugEnhancedLogging
 
 import scala.language.reflectiveCalls
-import scala.util.Try
+import scala.util.{ Failure, Success, Try }
 import scala.util.control.NonFatal
 
 object Command extends App with DebugEnhancedLogging {
@@ -45,8 +45,14 @@ object Command extends App with DebugEnhancedLogging {
     val logWriter: FileWriter = commandLine.logFile().newFileWriter(append = true)
     new Dispose(CsvRecord.csvFormat.print(logWriter)).apply { implicit printer =>
       commandLine.datasetId
-        .map(app.simpleTransform(outputDir / UUID.randomUUID().toString))
+        .map(f => Iterator(app.simpleTransform(outputDir / UUID.randomUUID().toString)(f)))
         .getOrElse(app.simpleTransForms(commandLine.inputFile(), outputDir))
+        .map(_.flatMap(_.print))
+        .collectFirst { case f @ Failure(_) => f }
+        .getOrElse(Success(
+          s"""All datasets in ${ commandLine.inputFile() }
+             | saved as bags in $outputDir""".stripMargin
+        ))
     }
   }
 }
