@@ -23,8 +23,8 @@ import nl.knaw.dans.lib.error._
 import nl.knaw.dans.lib.logging.DebugEnhancedLogging
 
 import scala.language.reflectiveCalls
-import scala.util.{ Failure, Success, Try }
 import scala.util.control.NonFatal
+import scala.util.{ Failure, Success, Try }
 
 object Command extends App with DebugEnhancedLogging {
   type FeedBackMessage = String
@@ -44,15 +44,13 @@ object Command extends App with DebugEnhancedLogging {
     val outputDir = commandLine.outputDir()
     val logWriter: FileWriter = commandLine.logFile().newFileWriter(append = true)
     new Dispose(CsvRecord.csvFormat.print(logWriter)).apply { implicit printer =>
-      commandLine.datasetId
-        .map(f => Iterator(app.simpleTransform(outputDir / UUID.randomUUID().toString)(f)))
-        .getOrElse(app.simpleTransForms(commandLine.inputFile(), outputDir))
-        .map(_.flatMap(_.print))
-        .collectFirst { case f @ Failure(_) => f }
-        .getOrElse(Success(
-          s"""All datasets in ${ commandLine.inputFile() }
-             | saved as bags in $outputDir""".stripMargin
-        ))
+      val xs = commandLine.datasetId
+        .map(app.simpleTransform(outputDir / UUID.randomUUID().toString))
+        .getOrElse(app.simpleTransForms(outputDir, commandLine.inputFile()))
+      xs.foreach(_.foreach(_.print))
+      xs.left.map(t => Failure(t))
+        .getOrElse(Success(s"""All datasets in ${ commandLine.inputFile() }
+                              | saved as bags in $outputDir""".stripMargin))
     }
   }
 }

@@ -20,6 +20,7 @@ import java.nio.file.Paths
 import java.util.UUID
 
 import better.files.{ File, StringExtensions }
+import cats.data.Ior
 import com.yourmediashelf.fedora.client.{ FedoraClient, FedoraClientException }
 import javax.naming.ldap.InitialLdapContext
 import nl.knaw.dans.bag.v0.DansV0Bag
@@ -32,7 +33,7 @@ import nl.knaw.dans.pf.language.emd.binding.EmdUnmarshaller
 import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
-import scala.util.{ Failure, Success, Try }
+import scala.util.{ Success, Try }
 import scala.xml.{ Elem, Node, NodeSeq }
 
 class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLogging {
@@ -41,22 +42,26 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
   private lazy val ldap = new Ldap(ldapContext)
   private val emdUnmarshaller = new EmdUnmarshaller(classOf[EasyMetadataImpl])
 
-  def simpleTransForms(input: File, outputDir: File): Iterator[Try[CsvRecord]] = {
+  def simpleTransForms(outputDir: File, input: File): Ior[Throwable,Iterator[CsvRecord]] = {
     input.lineIterator.filterNot(_.startsWith("#")).map { datasetId =>
       val uuid = UUID.randomUUID
-      simpleTransform(outputDir / uuid.toString)(datasetId)
-        .doIfFailure { case t => logger.error(s"$datasetId -> $uuid failed: $t", t) }
-        .recoverWith {
-          case t: FedoraClientException if t.getStatus != 404 => Failure(t)
-          case t: Exception if t.isInstanceOf[IOException] => Failure(t)
-          case t => Success(CsvRecord(
+      Ior.fromEither(singleTransform(outputDir / uuid.toString, datasetId)
+        match {
+          case Left(t: FedoraClientException) if t.getStatus != 404 => Left(t)
+          case Left(t: Exception) if t.isInstanceOf[IOException] => Left(t)
+          case Left(t: Throwable)  => Right(CsvRecord(
             datasetId, doi = "", depositor = "", SIMPLE, uuid, s"FAILED: $t"
           ))
-        }
+          case r => r
+        })
     }
   }
 
-  def simpleTransform(bagDir: File)(datasetId: DatasetId): Try[CsvRecord] = {
+  def simpleTransform(bagDir: File)(datasetId: DatasetId): Ior[Throwable, Iterator[CsvRecord]] = Ior
+    .fromEither(singleTransform(bagDir, datasetId))
+    .map(Iterator(_))
+
+  protected def singleTransform(bagDir: File, datasetId: DatasetId): Either[Throwable,CsvRecord] = {
 
     def managedMetadataStream(foXml: Elem, streamId: String, bag: DansV0Bag, metadataFile: String) = {
       managedStreamLabel(foXml, streamId)
@@ -121,7 +126,8 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
         .getOrElse(Success(())) // TODO check with sha's from fedora
       doi = emd.getEmdIdentifier.getDansManagedDoi
     } yield CsvRecord(datasetId, doi, depositor, SIMPLE, UUID.fromString(bagDir.name), "OK")
-  }
+  }.doIfFailure { case t => logger.error(s"$datasetId -> $datasetId failed: $t", t) }.toEither
+
 
   private def getAudience(id: String) = {
     fedoraProvider.loadFoXml(id).map(foXml =>

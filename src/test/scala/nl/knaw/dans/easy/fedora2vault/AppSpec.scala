@@ -51,7 +51,7 @@ class AppSpec extends TestSupportFixture with MockFactory with FileSystemSupport
 
   private class OverriddenApp extends MockedApp {
     /** overrides the method called by the method under test */
-    override def simpleTransform(outputDir: File)(datasetId: DatasetId): Try[CsvRecord] = {
+    override def singleTransform(outputDir: File)(datasetId: DatasetId): Try[CsvRecord] = {
       if (datasetId.startsWith("fatal"))
         Failure(new FedoraClientException(300, "mocked exception"))
       else if (!datasetId.startsWith("success")) {
@@ -71,7 +71,7 @@ class AppSpec extends TestSupportFixture with MockFactory with FileSystemSupport
         |""".stripMargin
     )
     val outputDir = (testDir / "output").createDirectories()
-    new OverriddenApp().simpleTransForms(input, outputDir) .toSeq should matchPattern {
+    new OverriddenApp().simpleTransForms(outputDir, input) .toSeq should matchPattern {
       case Seq(
       Success(CsvRecord("success:1", "", "", SIMPLE, _, "OK")),
       Success(CsvRecord("success:2", "", "", SIMPLE, _, "OK")),
@@ -90,7 +90,7 @@ class AppSpec extends TestSupportFixture with MockFactory with FileSystemSupport
         |""".stripMargin
     )
     val outputDir = (testDir / "output").createDirectories()
-    new OverriddenApp().simpleTransForms(input, outputDir).toSeq should matchPattern {
+    new OverriddenApp().simpleTransForms(outputDir, input).toSeq should matchPattern {
       case Seq(
       Success(CsvRecord(_, _, _, _, _, "OK")),
       Success(CsvRecord(_, _, _, _, _, "FAILED: java.lang.Exception: failure:2")),
@@ -116,7 +116,7 @@ class AppSpec extends TestSupportFixture with MockFactory with FileSystemSupport
       (testDir / "manifest-sha1.txt").write("rabarbera"),
     )
 
-    app.simpleTransform(testDir / "bags" / UUID.randomUUID.toString)("easy-dataset:17") should matchPattern {
+    app.singleTransform(testDir / "bags" / UUID.randomUUID.toString)("easy-dataset:17") should matchPattern {
       case Success(CsvRecord("easy-dataset:17", "10.17026/test-Iiib-z9p-4ywa", "user001", SIMPLE, _, "OK")) =>
     }
     val metadata = (testDir / "bags").children.next() / "metadata"
@@ -142,7 +142,7 @@ class AppSpec extends TestSupportFixture with MockFactory with FileSystemSupport
       (testDir / "something.txt").writeText("don't care")
     )
 
-    app.simpleTransform(testDir / "bags" / UUID.randomUUID.toString)("easy-dataset:13") should matchPattern {
+    app.singleTransform(testDir / "bags" / UUID.randomUUID.toString)("easy-dataset:13") should matchPattern {
       case Success(CsvRecord("easy-dataset:13", null, "user001", SIMPLE, _, "OK")) =>
     }
     val metadata = (testDir / "bags").children.next() / "metadata"
