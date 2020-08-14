@@ -16,14 +16,17 @@
 package nl.knaw.dans.easy.fedora2vault
 
 import better.files.File
+import com.typesafe.scalalogging.Logger
 import nl.knaw.dans.easy.fedora2vault.fixture.{ AudienceSupport, EmdSupport, SchemaSupport, TestSupportFixture }
 import nl.knaw.dans.pf.language.emd.EasyMetadataImpl
 import nl.knaw.dans.pf.language.emd.binding.EmdUnmarshaller
+import org.scalamock.scalatest.MockFactory
+import org.slf4j.{ Logger => UnderlyingLogger }
 
 import scala.util.{ Failure, Success, Try }
 import scala.xml._
 
-class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport with SchemaSupport {
+class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport with SchemaSupport with MockFactory {
 
   override val schema = "https://easy.dans.knaw.nl/schemas/md/ddm/ddm.xsd"
 
@@ -77,7 +80,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
 
   "streaming" should "get a valid DDM out of its EMD" in {
     val file = "streaming.xml"
-    val triedDdm = getEmd(file).flatMap(DDM(_, Seq("D35400")))
+    val triedDdm = getEmd(file).flatMap(DDM(_, Seq("D35400"))(mockedLogger()))
     val expectedDdm = (File("src/test/resources/expected-ddm/") / file)
       .contentAsString
       .replaceAll(" +", " ")
@@ -89,7 +92,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
 
   "depositApi" should "produce the DDM provided by easy-deposit-api" in {
     val triedFoXml = Try(XML.loadFile((sampleFoXML / "DepositApi.xml").toJava))
-    val triedDdm = getEmd("DepositApi.xml").flatMap(DDM(_, Seq("D13200")))
+    val triedDdm = getEmd("DepositApi.xml").flatMap(DDM(_, Seq("D13200"))(null))
     triedDdm shouldBe a[Success[_]]
 
     // round trip test (foXml/EMD was created from the foXML/DDM by easy-ingest-flow)
@@ -115,7 +118,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
       emdDates,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(mockedLogger())
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -175,7 +178,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:relation>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized( // TODO implemented quick and dirty
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
@@ -213,7 +216,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
             <dct:license eas:scheme="Easy2 version 1">accept</dct:license>
         </emd:rights>
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -243,7 +246,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
           <dct:accessRights eas:schemeId="common.dct.accessrights">OPEN_ACCESS</dct:accessRights>
       </emd:rights>
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -272,7 +275,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
             <dct:license>accept</dct:license>
         </emd:rights>
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -305,7 +308,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(mockedLogger())
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
@@ -336,7 +339,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    DDM(emd, Seq("D35400")).map(normalized) shouldBe Success(normalized(
+    DDM(emd, Seq("D35400"))(null).map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
         <ddm:dcmiMetadata>
@@ -405,7 +408,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized(_).replace("<posList></posList>", "<posList/>")) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
@@ -476,7 +479,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(mockedLogger())
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
@@ -536,7 +539,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(mockedLogger())
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
@@ -571,7 +574,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:coverage>,
       emdRights,
     ))
-    DDM(emd, Seq("D35400")).map(normalized) shouldBe Success(normalized(
+    DDM(emd, Seq("D35400"))(mockedLogger()).map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D35400") }
         <ddm:dcmiMetadata>
@@ -606,7 +609,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
       </emd:format>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D13200"))
+    val triedDDM = DDM(emd, Seq("D13200"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         { ddmProfile("D13200") }
@@ -659,7 +662,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
         </emd:creator>,
       emdDescription, emdDates, emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -717,7 +720,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
           </emd:date>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq.empty)
+    val triedDDM = DDM(emd, Seq.empty)(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -751,7 +754,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
           </emd:date>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq.empty)
+    val triedDDM = DDM(emd, Seq.empty)(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -788,7 +791,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
           </emd:date>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq.empty)
+    val triedDDM = DDM(emd, Seq.empty)(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -840,7 +843,7 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
           </emd:date>,
       emdRights,
     ))
-    val triedDDM = DDM(emd, Seq("D35400"))
+    val triedDDM = DDM(emd, Seq("D35400"))(null)
     triedDDM.map(normalized) shouldBe Success(normalized(
       <ddm:DDM xsi:schemaLocation={ schemaLocation }>
         <ddm:profile>
@@ -890,5 +893,9 @@ class DdmSpec extends TestSupportFixture with EmdSupport with AudienceSupport wi
       emdNode <- FoXml.getEmd(XML.loadFile((sampleFoXML / file).toJava))
       emd <- Try(emdUnMarshaller.unmarshal(emdNode.serialize))
     } yield emd
+  }
+
+  private def mockedLogger(expectsInfo: String = "") = {
+    Logger(mock[UnderlyingLogger])
   }
 }

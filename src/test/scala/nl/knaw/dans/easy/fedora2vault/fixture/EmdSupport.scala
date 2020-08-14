@@ -15,6 +15,7 @@
  */
 package nl.knaw.dans.easy.fedora2vault.fixture
 
+import com.typesafe.scalalogging.Logger
 import nl.knaw.dans.easy.fedora2vault._
 import nl.knaw.dans.pf.language.emd.EasyMetadataImpl
 import nl.knaw.dans.pf.language.emd.binding.EmdUnmarshaller
@@ -37,6 +38,6 @@ trait EmdSupport {
       .getOrRecover(e => fail("could not load test EMD", e))
   }
 
-  def emd2ddm(emd: EasyMetadataImpl): Elem = DDM(emd, Seq.empty)
+  def emd2ddm(emd: EasyMetadataImpl)(implicit logger: Logger): Elem = DDM(emd, Seq.empty)
     .getOrRecover(e => fail("could not create DDM from test EMD", e))
 }

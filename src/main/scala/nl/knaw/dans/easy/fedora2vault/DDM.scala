@@ -15,8 +15,8 @@
  */
 package nl.knaw.dans.easy.fedora2vault
 
+import com.typesafe.scalalogging.Logger
 import nl.knaw.dans.common.lang.dataset.AccessCategory._
-import nl.knaw.dans.lib.logging.DebugEnhancedLogging
 import nl.knaw.dans.lib.string._
 import nl.knaw.dans.pf.language.emd.types.EmdConstants.DateScheme
 import nl.knaw.dans.pf.language.emd.types._
@@ -26,13 +26,13 @@ import scala.collection.JavaConverters._
 import scala.util.Try
 import scala.xml._
 
-object DDM extends DebugEnhancedLogging {
+object DDM {
   val schemaNameSpace: String = "http://easy.dans.knaw.nl/schemas/md/ddm/"
   val schemaLocation: String = "https://easy.dans.knaw.nl/schemas/md/ddm/ddm.xsd"
   val dansLicense = "http://dans.knaw.nl/en/about/organisation-and-policy/legal-information/DANSLicence.pdf"
   val cc0 = "http://creativecommons.org/publicdomain/zero/1.0"
 
-  def apply(emd: EasyMetadataImpl, audiences: Seq[String]): Try[Elem] = Try {
+  def apply(emd: EasyMetadataImpl, audiences: Seq[String])(implicit logger: Logger): Try[Elem] = Try {
     //    println(new EmdMarshaller(emd).getXmlString)
 
     val dateMap: Map[String, Iterable[Elem]] = getDateMap(emd)
@@ -106,7 +106,7 @@ object DDM extends DebugEnhancedLogging {
     case s => s
   }
 
-  private def xsiType(bs: BasicString): String = {
+  private def xsiType(bs: BasicString)(implicit logger: Logger): String = {
     val scheme = Option(bs.getScheme).map(_.toUpperCase())
     (scheme, Option(bs.getSchemeId)) match {
       case (Some("ABR"), Some("archaeology.dc.subject")) => "abr:ABRcomplex"
@@ -122,14 +122,14 @@ object DDM extends DebugEnhancedLogging {
 
   private def idType(bs: BasicString): String = Option(bs.getScheme).map(s => "id-type:" + s).orNull
 
-  private def notImplementedAttribute(msg: String)(data: Any): String = {
+  private def notImplementedAttribute(msg: String)(data: Any)(implicit logger: Logger): String = {
     // TODO return something that won't pass validation
-    logger.error(s"not implemented $msg [$data]")
+    logger.error(mockFriendly(s"not implemented $msg [$data]"))
     null
   }
 
-  private def notImplemented(msg: String)(data: Any): Elem = {
-    logger.error(s"not implemented $msg [$data]")
+  private def notImplemented(msg: String)(data: Any)(implicit logger: Logger): Elem = {
+    logger.error(mockFriendly(s"not implemented $msg [$data]"))
     <not:implemented/>
   }
 
@@ -159,7 +159,7 @@ object DDM extends DebugEnhancedLogging {
     s"$uri/${ id.getEntityId }"
   }
 
-  private def toXml(spatial: Spatial): Elem = {
+  private def toXml(spatial: Spatial)(implicit logger: Logger): Elem = {
     (Option(spatial.getPlace),
       Option(spatial.getPoint),
       Option(spatial.getBox),
@@ -175,7 +175,7 @@ object DDM extends DebugEnhancedLogging {
     }
   }
 
-  private def toXmlPoint(emdPoint: Spatial.Point) = {
+  private def toXmlPoint(emdPoint: Spatial.Point)(implicit logger: Logger) = {
     val point = SpatialPoint(
       optional(emdPoint.getScheme),
       optional(emdPoint.getX),
@@ -184,7 +184,7 @@ object DDM extends DebugEnhancedLogging {
     point.dcxGml.getOrElse(notImplemented("invalid point")(point))
   }
 
-  private def toXml(spatial: Spatial.Box): Elem = {
+  private def toXml(spatial: Spatial.Box)(implicit logger: Logger): Elem = {
     val box = SpatialBox(
       optional(spatial.getScheme),
       optional(spatial.getNorth),
@@ -262,9 +262,9 @@ object DDM extends DebugEnhancedLogging {
     >{ rel.getSubjectTitle.getValue }</label>
   }.withLabel(relationLabel("ddm:", key))
 
-  private def toRelationXml(key: String, bs: BasicString): Node = {
+  private def toRelationXml(key: String, bs: BasicString)(implicit logger: Logger): Node = {
     if (bs.getScheme == "STREAMING_SURROGATE_RELATION") {
-      logger.info(s"skipped ${ relationLabel("dct:", key) } ${ bs.getScheme } $bs")
+      logger.info(mockFriendly(s"skipped ${ relationLabel("dct:", key) } ${ bs.getScheme } $bs"))
       Text("")
     }
     else <label xsi:type={ idType(bs) }

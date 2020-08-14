@@ -96,7 +96,7 @@ class EasyFedora2vaultApp(configuration: Configuration) extends DebugEnhancedLog
       amd <- getAmd(foXml)
       audiences <- emd.getEmdAudience.getDisciplines.asScala
         .map(id => getAudience(id.getValue)).collectResults
-      ddm <- DDM(emd, audiences)
+      ddm <- DDM(emd, audiences)(logger)
       fedoraIDs <- fedoraProvider.getSubordinates(datasetId)
       jumpOffIds = fedoraIDs.filter(_.startsWith("easy-jumpoff:"))
       maybeSimpleViolations <- simpleChecker.violations(emd, ddm, amd, jumpOffIds)
